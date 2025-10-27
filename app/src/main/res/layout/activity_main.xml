@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="#2E2E2E"
+    android:gravity="center"
+    android:padding="24dp">
+
+    <TextView
+        android:text="♔ CỜ VUA ANDROID ♚"
+        android:textSize="26sp"
+        android:textColor="#FFD700"
+        android:fontFamily="sans-serif-black"
+        android:layout_marginBottom="40dp"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+    <Button
+        android:id="@+id/btnTwoPlayer"
+        android:text="👥 2 Người chơi"
+        android:layout_width="250dp"
+        android:layout_height="wrap_content"
+        android:layout_margin="10dp"
+        android:backgroundTint="#E0A100"
+        android:textColor="#FFFFFF" />
+
+    <Button
+        android:id="@+id/btnAI"
+        android:text="🤖 Đấu với máy"
+        android:layout_width="250dp"
+        android:layout_height="wrap_content"
+        android:layout_margin="10dp"
+        android:backgroundTint="#6AA84F"
+        android:textColor="#FFFFFF" />
+
+    <Button
+        android:id="@+id/btnHistory"
+        android:text="🕓 Lịch sử ván chơi"
+        android:layout_width="250dp"
+        android:layout_height="wrap_content"
+        android:layout_margin="10dp"
+        android:backgroundTint="#3C78D8"
+        android:textColor="#FFFFFF" />
+
+</LinearLayout>

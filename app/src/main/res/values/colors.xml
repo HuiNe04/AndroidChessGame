@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material default -->
+    <color name="purple_200">#BB86FC</color>
+    <color name="purple_500">#6200EE</color>
+    <color name="purple_700">#3700B3</color>
+    <color name="teal_200">#03DAC5</color>
+    <color name="teal_700">#018786</color>
+    <color name="black">#000000</color>
+    <color name="white">#FFFFFF</color>
+    <color name="red">#E53935</color>
+    <color name="green">#4CAF50</color>
+
+    <!-- Chess UI -->
+    <color name="board_light">#EEE8D5</color>
+    <color name="board_dark">#6B4F3A</color>
+    <color name="highlight_green">#4CAF50</color>
+    <color name="capture_red">#E53935</color>
+
+    <!-- Các màu bị thiếu -->
+    <color name="yellow">#FFD600</color>
+    <color name="gold">#D4AF37</color>
+    <color name="board_bg">#E6CBA8</color>
+    <color name="bg_dark">#3E2723</color>
+</resources>
