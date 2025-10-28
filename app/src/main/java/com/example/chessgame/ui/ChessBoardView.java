@@ -2,14 +2,17 @@ package com.example.chessgame.ui;
 
 import android.animation.ObjectAnimator;
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.media.AudioAttributes;
 import android.media.SoundPool;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
+import android.graphics.Color;
 
 import com.example.chessgame.R;
 import com.example.chessgame.logic.GameManager;
@@ -17,9 +20,21 @@ import com.example.chessgame.logic.MoveValidator;
 import com.example.chessgame.model.Piece;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class ChessBoardView extends View {
+
+    // 🎯 Callback để ChessActivity cập nhật UI
+    public interface OnMoveListener {
+        void onMoveCompleted();
+    }
+    private OnMoveListener moveListener;
+    public void setOnMoveListener(OnMoveListener listener) {
+        this.moveListener = listener;
+    }
+
     private Paint paint = new Paint();
     private int cellSize;
     private GameManager gameManager;
@@ -33,6 +48,9 @@ public class ChessBoardView extends View {
     private boolean capturing = false;
     private int captureRow = -1, captureCol = -1;
 
+    private Bitmap lightSquare, darkSquare;
+    private Map<String, Bitmap> pieceImages = new HashMap<>();
+
     public ChessBoardView(Context context, AttributeSet attrs) {
         super(context, attrs);
         init();
@@ -43,6 +61,7 @@ public class ChessBoardView extends View {
         gameManager = new GameManager();
         validator = new MoveValidator(gameManager.getBoard());
         initSounds();
+        loadImages();
     }
 
     private void initSounds() {
@@ -60,11 +79,34 @@ public class ChessBoardView extends View {
         soundCapture = soundPool.load(getContext(), R.raw.capture, 1);
     }
 
+    private void loadImages() {
+        // 🟫🟨 Ô sáng / Ô tối
+        lightSquare = BitmapFactory.decodeResource(getResources(), R.drawable.chess_light);
+        darkSquare = BitmapFactory.decodeResource(getResources(), R.drawable.chess_dark);
+
+        // Nạp quân trắng
+        pieceImages.put("WHITE_KING", BitmapFactory.decodeResource(getResources(), R.drawable.w_king));
+        pieceImages.put("WHITE_QUEEN", BitmapFactory.decodeResource(getResources(), R.drawable.w_queen));
+        pieceImages.put("WHITE_ROOK", BitmapFactory.decodeResource(getResources(), R.drawable.w_rook));
+        pieceImages.put("WHITE_BISHOP", BitmapFactory.decodeResource(getResources(), R.drawable.w_bishop));
+        pieceImages.put("WHITE_KNIGHT", BitmapFactory.decodeResource(getResources(), R.drawable.w_knight));
+        pieceImages.put("WHITE_PAWN", BitmapFactory.decodeResource(getResources(), R.drawable.w_pawn));
+
+        // Nạp quân đen
+        pieceImages.put("BLACK_KING", BitmapFactory.decodeResource(getResources(), R.drawable.b_king));
+        pieceImages.put("BLACK_QUEEN", BitmapFactory.decodeResource(getResources(), R.drawable.b_queen));
+        pieceImages.put("BLACK_ROOK", BitmapFactory.decodeResource(getResources(), R.drawable.b_rook));
+        pieceImages.put("BLACK_BISHOP", BitmapFactory.decodeResource(getResources(), R.drawable.b_bishop));
+        pieceImages.put("BLACK_KNIGHT", BitmapFactory.decodeResource(getResources(), R.drawable.b_knight));
+        pieceImages.put("BLACK_PAWN", BitmapFactory.decodeResource(getResources(), R.drawable.b_pawn));
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         int width = getWidth();
         cellSize = width / 8;
+
         drawBoard(canvas);
         drawHighlights(canvas);
         drawPieces(canvas);
@@ -72,20 +114,28 @@ public class ChessBoardView extends View {
         if (capturing) drawCaptureEffect(canvas);
     }
 
+    // 🎨 Vẽ bàn cờ từ 2 file ảnh chess_light / chess_dark
     private void drawBoard(Canvas canvas) {
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
-                boolean light = (r + c) % 2 == 0;
-                paint.setStyle(Paint.Style.FILL);
-                paint.setColor(light ? Color.parseColor("#EEE8D5") : Color.parseColor("#6B4F3A"));
-                canvas.drawRect(c * cellSize, r * cellSize, (c + 1) * cellSize, (r + 1) * cellSize, paint);
+                boolean isLight = (r + c) % 2 == 0;
+                Bitmap square = isLight ? lightSquare : darkSquare;
+                if (square != null) {
+                    Rect dst = new Rect(
+                            c * cellSize,
+                            r * cellSize,
+                            (c + 1) * cellSize,
+                            (r + 1) * cellSize
+                    );
+                    canvas.drawBitmap(square, null, dst, paint);
+                }
             }
         }
     }
 
     private void drawHighlights(Canvas canvas) {
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Color.argb(80, 0, 200, 0));
+        paint.setColor(0x5000C800); // xanh lá mờ
         for (int[] move : validMoves) {
             int r = move[0], c = move[1];
             canvas.drawRect(c * cellSize, r * cellSize, (c + 1) * cellSize, (r + 1) * cellSize, paint);
@@ -93,19 +143,22 @@ public class ChessBoardView extends View {
     }
 
     private void drawPieces(Canvas canvas) {
-        paint.setTextSize(cellSize * 0.6f);
-        paint.setTextAlign(Paint.Align.CENTER);
-        Paint.FontMetrics fm = paint.getFontMetrics();
-        float textOffset = (fm.descent + fm.ascent) / 2;
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
                 Piece p = gameManager.getBoard().getPiece(r, c);
                 if (p != null) {
-                    paint.setColor(p.isWhite() ? Color.WHITE : Color.BLACK);
-                    String s = getSymbol(p.getType());
-                    float x = c * cellSize + cellSize / 2f;
-                    float y = r * cellSize + cellSize / 2f - textOffset;
-                    canvas.drawText(s, x, y, paint);
+                    String key = (p.isWhite() ? "WHITE_" : "BLACK_") + p.getType().name();
+                    Bitmap img = pieceImages.get(key);
+                    if (img != null) {
+                        Rect dst = new Rect(
+                                c * cellSize,
+                                r * cellSize,
+                                (c + 1) * cellSize,
+                                (r + 1) * cellSize
+                        );
+                        paint.setAlpha(255);
+                        canvas.drawBitmap(img, null, dst, paint);
+                    }
                 }
             }
         }
@@ -122,26 +175,15 @@ public class ChessBoardView extends View {
         if (captureRow == -1 || captureCol == -1) return;
         float cx = captureCol * cellSize + cellSize / 2f;
         float cy = captureRow * cellSize + cellSize / 2f;
-        paint.setColor(Color.argb(150, 255, 0, 0));
+        paint.setColor(Color.argb(180, 255, 0, 0));
         canvas.drawCircle(cx, cy, cellSize * 0.4f * captureScale, paint);
-    }
-
-    private String getSymbol(Piece.Type type) {
-        switch (type) {
-            case KING: return "♔";
-            case QUEEN: return "♕";
-            case ROOK: return "♖";
-            case BISHOP: return "♗";
-            case KNIGHT: return "♘";
-            case PAWN: return "♙";
-            default: return "?";
-        }
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         if (event.getAction() != MotionEvent.ACTION_DOWN) return false;
         if (cellSize == 0) return false;
+        if (gameManager.isGameOver()) return false; // Ngăn di chuyển sau khi thua/thắng
 
         int col = (int) (event.getX() / cellSize);
         int row = (int) (event.getY() / cellSize);
@@ -168,14 +210,13 @@ public class ChessBoardView extends View {
             if (moved) {
                 soundPool.play(isCapture ? soundCapture : soundMove, 1, 1, 0, 0, 1);
                 if (isCapture) triggerCaptureAnimation(row, col);
-            } else {
-                if (selectedPiece != null && selectedPiece.isWhite() == gameManager.isWhiteTurn()) {
-                    selectedR = row;
-                    selectedC = col;
-                    validMoves = getValidMovesForPiece(selectedPiece, row, col);
-                }
+                invalidate();
+
+                // ✅ Báo lại cho Activity kiểm tra thắng/thua
+                if (moveListener != null) moveListener.onMoveCompleted();
             }
         }
+
         invalidate();
         return true;
     }
@@ -209,7 +250,7 @@ public class ChessBoardView extends View {
     }
 
     public void resetGame() {
-        gameManager = new GameManager();
+        gameManager.reset();
         validator = new MoveValidator(gameManager.getBoard());
         selectedR = selectedC = -1;
         validMoves.clear();

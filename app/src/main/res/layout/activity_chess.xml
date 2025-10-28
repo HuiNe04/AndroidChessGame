@@ -6,22 +6,22 @@
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:background="@color/bg_dark"
-    android:padding="12dp"
+    android:padding="8dp"
     tools:context=".ChessActivity">
 
-    <!-- Tiêu đề -->
-    <TextView
-        android:id="@+id/txtGameTitle"
+    <!-- 🧭 Thanh Toolbar có menu -->
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="♔ CỜ VUA ANDROID ♚"
-        android:textColor="@color/gold"
-        android:textSize="24sp"
-        android:fontFamily="sans-serif-medium"
-        android:gravity="center"
-        android:layout_marginBottom="8dp" />
+        android:layout_height="?attr/actionBarSize"
+        android:backgroundTint="@color/board_bg"
+        app:title="♔ Chess Game ♚"
+        app:titleTextColor="@color/gold"
+        app:subtitle="v1.0"
+        app:subtitleTextColor="@color/white"
+        app:menu="@menu/chess_menu" />
 
-    <!-- Trạng thái lượt / chiếu -->
+    <!-- ⚡ Hiển thị trạng thái lượt -->
     <TextView
         android:id="@+id/txtStatus"
         android:layout_width="match_parent"
@@ -30,9 +30,10 @@
         android:textColor="@color/white"
         android:textSize="16sp"
         android:gravity="center"
-        android:layout_marginBottom="8dp" />
+        android:layout_marginTop="6dp"
+        android:layout_marginBottom="6dp" />
 
-    <!-- Bàn cờ -->
+    <!-- ♟️ Bàn cờ -->
     <androidx.cardview.widget.CardView
         android:layout_width="match_parent"
         android:layout_height="0dp"
@@ -48,41 +49,4 @@
             android:layout_height="match_parent" />
     </androidx.cardview.widget.CardView>
 
-    <!-- Thanh nút điều khiển -->
-    <LinearLayout
-        android:id="@+id/controls"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center"
-        android:orientation="horizontal"
-        android:padding="8dp"
-        android:weightSum="3">
-
-        <Button
-            android:id="@+id/btnUndo"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="↶ Undo"
-            android:backgroundTint="@color/yellow"
-            android:textColor="@color/black" />
-
-        <Button
-            android:id="@+id/btnReset"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="⟳ Reset"
-            android:backgroundTint="@color/red"
-            android:textColor="@color/white" />
-
-        <Button
-            android:id="@+id/btnSave"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="💾 Save"
-            android:backgroundTint="@color/green"
-            android:textColor="@color/white" />
-    </LinearLayout>
 </LinearLayout>

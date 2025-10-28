@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/mnuUndo"
+        android:title="Undo"
+        android:icon="@drawable/ic_undo"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/mnuRestart"
+        android:title="Restart"
+        android:icon="@drawable/ic_restart"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/mnuHistory"
+        android:title="History"
+        android:icon="@drawable/ic_history"
+        app:showAsAction="never" />
+</menu>

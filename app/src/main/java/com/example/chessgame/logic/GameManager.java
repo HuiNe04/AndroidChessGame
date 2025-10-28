@@ -5,10 +5,12 @@ import com.example.chessgame.model.Piece;
 import java.util.Stack;
 
 public class GameManager {
-    private Board board;
-    private MoveValidator validator;
+    private final Board board;
+    private final MoveValidator validator;
     private boolean whiteTurn = true;
-    private Stack<Move> history = new Stack<>();
+    private final Stack<Move> history = new Stack<>();
+    private boolean gameOver = false;
+    private String winner = "";
 
     public GameManager() {
         board = new Board();
@@ -17,37 +19,53 @@ public class GameManager {
 
     public Board getBoard() { return board; }
     public boolean isWhiteTurn() { return whiteTurn; }
+    public boolean isGameOver() { return gameOver; }
+    public String getWinner() { return winner; }
 
-    // Thử thực hiện nước đi; trả về true nếu thành công
+    // ✅ Thực hiện nước đi; trả về true nếu thành công
     public boolean tryMove(int fr, int fc, int tr, int tc) {
-        if (!validator.isValidMove(fr, fc, tr, tc, whiteTurn)) return false;
+        if (gameOver) return false;
 
         Piece moved = board.getPiece(fr, fc);
-        Piece captured = board.getPiece(tr, tc);
+        if (moved == null) return false;
+
+        Piece capturedBefore = board.getPiece(tr, tc);
         boolean prevHasMoved = moved.hasMoved();
 
-        // Thực hiện tạm thời
-        board.movePiece(fr, fc, tr, tc);
+        // Thực hiện nước đi (MoveValidator xử lý promotion + castling + en passant)
+        if (!validator.makeMove(fr, fc, tr, tc, whiteTurn)) return false;
 
-        // Kiểm tra không self-check (không được đưa vua mình vào trạng thái bị chiếu)
-        if (isKingInCheck(!whiteTurn)) {
-            // rollback
-            board.placePiece(fr, fc, moved);
-            board.placePiece(tr, tc, captured);
-            moved.setMoved(prevHasMoved);
-            return false;
+        // ✅ Lưu lịch sử để Undo
+        history.push(new Move(fr, fc, tr, tc, moved, capturedBefore, prevHasMoved));
+
+        // ✅ Kiểm tra vua bị ăn
+        if (!hasKing(true)) {
+            gameOver = true;
+            winner = "Đen";
+        } else if (!hasKing(false)) {
+            gameOver = true;
+            winner = "Trắng";
         }
 
-        // Lưu history để undo
-        Move mv = new Move(fr, fc, tr, tc, moved, captured, prevHasMoved);
-        history.push(mv);
+        // ✅ Đổi lượt nếu chưa kết thúc
+        if (!gameOver) whiteTurn = !whiteTurn;
 
-        // đổi lượt
-        whiteTurn = !whiteTurn;
         return true;
     }
 
-    // Undo 1 nước
+    // ✅ Kiểm tra còn vua không
+    private boolean hasKing(boolean whiteKing) {
+        for (int r = 0; r < 8; r++) {
+            for (int c = 0; c < 8; c++) {
+                Piece p = board.getPiece(r, c);
+                if (p != null && p.getType() == Piece.Type.KING && p.isWhite() == whiteKing)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    // ✅ Undo 1 nước
     public boolean undo() {
         if (history.isEmpty()) return false;
         Move last = history.pop();
@@ -59,36 +77,21 @@ public class GameManager {
         if (moved != null) moved.setMoved(last.movedPieceHasMovedBefore);
 
         whiteTurn = !whiteTurn;
+        gameOver = false;
+        winner = "";
         return true;
-    }
-
-    // Kiểm tra vua của color (true=white) có bị chiếu không
-    public boolean isKingInCheck(boolean whiteColor) {
-        int kingR = -1, kingC = -1;
-        for (int r = 0; r < 8; r++) {
-            for (int c = 0; c < 8; c++) {
-                Piece p = board.getPiece(r, c);
-                if (p != null && p.getType() == Piece.Type.KING && p.isWhite() == whiteColor) {
-                    kingR = r; kingC = c;
-                }
-            }
-        }
-        if (kingR == -1) return true; // không thấy vua => coi như bị check
-
-        // duyệt tất cả quân đối phương, nếu có nước tới vua => check
-        MoveValidator mv = new MoveValidator(board);
-        for (int r = 0; r < 8; r++) {
-            for (int c = 0; c < 8; c++) {
-                Piece p = board.getPiece(r, c);
-                if (p != null && p.isWhite() != whiteColor) {
-                    if (mv.isValidMove(r, c, kingR, kingC, !whiteColor)) return true;
-                }
-            }
-        }
-        return false;
     }
 
     public int getTotalMoves() {
         return history.size();
+    }
+
+    // ✅ Reset ván mới
+    public void reset() {
+        board.reset();
+        history.clear();
+        whiteTurn = true;
+        gameOver = false;
+        winner = "";
     }
 }

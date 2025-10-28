@@ -1,8 +1,8 @@
 package com.example.chessgame;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
-import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -11,8 +11,8 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.chessgame.db.DatabaseHelper;
 import com.example.chessgame.logic.AIPlayer;
-import com.example.chessgame.logic.MoveValidator;
 import com.example.chessgame.ui.ChessBoardView;
+import com.google.android.material.appbar.MaterialToolbar;
 
 public class ChessActivity extends AppCompatActivity {
     private ChessBoardView chessBoard;
@@ -20,24 +20,45 @@ public class ChessActivity extends AppCompatActivity {
     private AIPlayer aiPlayer;
     private boolean aiEnabled = false;
     private TextView txtStatus;
-    private Handler handler = new Handler();
-    private MoveValidator validator;
+    private final Handler handler = new Handler();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chess);
 
+        // 🔹 Ánh xạ View
         chessBoard = findViewById(R.id.chessBoard);
-        Button btnUndo = findViewById(R.id.btnUndo);
-        Button btnReset = findViewById(R.id.btnReset);
-        Button btnSave = findViewById(R.id.btnSave);
         txtStatus = findViewById(R.id.txtStatus);
         db = new DatabaseHelper(this);
 
+        chessBoard.setOnMoveListener(this::updateStatus);
+
+        // 🔹 Toolbar + menu Material3
+        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        toolbar.setOnMenuItemClickListener(item -> {
+            int id = item.getItemId();
+            if (id == R.id.mnuUndo) {
+                boolean undone = chessBoard.undoMove();
+                if (!undone)
+                    Toast.makeText(this, "Không thể hoàn tác!", Toast.LENGTH_SHORT).show();
+                updateStatus();
+                return true;
+            } else if (id == R.id.mnuRestart) {
+                chessBoard.resetGame();
+                updateStatus();
+                Toast.makeText(this, "🔁 Đã khởi động lại ván cờ", Toast.LENGTH_SHORT).show();
+                return true;
+            } else if (id == R.id.mnuHistory) {
+                startActivity(new Intent(this, HistoryActivity.class));
+                return true;
+            }
+            return false;
+        });
+
+        // 🔹 Xác định chế độ chơi (AI / 2 người)
         String mode = getIntent().getStringExtra("mode");
         aiEnabled = "ai".equals(mode);
-        validator = new MoveValidator(chessBoard.getGameManager().getBoard());
 
         if (aiEnabled) {
             aiPlayer = new AIPlayer(chessBoard.getGameManager());
@@ -46,37 +67,19 @@ public class ChessActivity extends AppCompatActivity {
             Toast.makeText(this, "👥 Chế độ 2 người chơi", Toast.LENGTH_SHORT).show();
         }
 
-        btnUndo.setOnClickListener(v -> {
-            boolean ok = chessBoard.undoMove();
-            if (!ok)
-                Toast.makeText(this, "Không thể Undo", Toast.LENGTH_SHORT).show();
-            updateStatus();
-        });
-
-        btnReset.setOnClickListener(v -> {
-            chessBoard.resetGame();
-            updateStatus();
-        });
-
-        btnSave.setOnClickListener(v -> {
-            int moves = chessBoard.getGameManager().getTotalMoves();
-            long id = db.insertGame(mode, "Unknown", moves);
-            if (id > 0)
-                Toast.makeText(this, "💾 Đã lưu vào lịch sử", Toast.LENGTH_SHORT).show();
-            else
-                Toast.makeText(this, "Lưu thất bại", Toast.LENGTH_SHORT).show();
-        });
-
-        // Cập nhật trạng thái sau mỗi lần vẽ lại
+        // 🔹 Theo dõi trạng thái sau mỗi lần vẽ lại bàn cờ
         chessBoard.addOnLayoutChangeListener((v, l, t, r, b, oldl, oldt, oldr, oldb) -> updateStatus());
 
-        // Nếu chế độ AI, để máy tự đi
+        // 🔹 Nếu AI bật → cho máy đi tự động
         if (aiEnabled) {
             new Thread(() -> {
                 while (true) {
-                    try { Thread.sleep(1200); } catch (InterruptedException ignored) {}
+                    try {
+                        Thread.sleep(1200);
+                    } catch (InterruptedException ignored) {}
                     runOnUiThread(() -> {
-                        if (!chessBoard.getGameManager().isWhiteTurn()) {
+                        if (!chessBoard.getGameManager().isWhiteTurn()
+                                && !chessBoard.getGameManager().isGameOver()) {
                             aiPlayer.makeRandomMove(false);
                             chessBoard.invalidate();
                             updateStatus();
@@ -85,29 +88,36 @@ public class ChessActivity extends AppCompatActivity {
                 }
             }).start();
         }
+
+        updateStatus();
     }
 
+    // 🔹 Cập nhật trạng thái ván đấu
     private void updateStatus() {
-        boolean whiteTurn = chessBoard.getGameManager().isWhiteTurn();
-        boolean isCheck = validator.isKingInCheck(whiteTurn);
-        boolean isCheckmate = validator.isCheckmate(whiteTurn);
+        var gm = chessBoard.getGameManager();
 
-        if (isCheckmate) {
-            String winner = whiteTurn ? "Đen" : "Trắng";
-            showGameOverDialog("♛ Hết cờ! " + winner + " thắng!");
-        } else if (isCheck) {
-            txtStatus.setText("⚠️ Chiếu tướng! Lượt: " + (whiteTurn ? "Trắng" : "Đen"));
-        } else {
-            txtStatus.setText("Lượt: " + (whiteTurn ? "Trắng" : "Đen"));
+        // ✅ Nếu ván đã kết thúc (vua bị ăn)
+        if (gm.isGameOver()) {
+            String winner = gm.getWinner();
+            showGameOverDialog("🏁 Vua bị ăn!\n" + winner + " thắng trận!");
+            return;
         }
+
+        // ✅ Nếu chưa hết cờ, hiển thị lượt chơi
+        boolean whiteTurn = gm.isWhiteTurn();
+        txtStatus.setText("Lượt: " + (whiteTurn ? "Trắng" : "Đen"));
     }
 
+    // 🔹 Hộp thoại kết thúc ván
     private void showGameOverDialog(String message) {
         new AlertDialog.Builder(this)
                 .setTitle("Kết thúc ván cờ")
                 .setMessage(message)
                 .setCancelable(false)
-                .setPositiveButton("Chơi lại", (d, w) -> chessBoard.resetGame())
+                .setPositiveButton("Chơi lại", (d, w) -> {
+                    chessBoard.resetGame();
+                    updateStatus();
+                })
                 .setNegativeButton("Thoát", (d, w) -> finish())
                 .show();
     }
