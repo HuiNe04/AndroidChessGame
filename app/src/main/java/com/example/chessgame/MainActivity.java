@@ -3,6 +3,9 @@ package com.example.chessgame;
 import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
+import androidx.appcompat.app.AlertDialog;
+import android.content.DialogInterface;
+
 
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -23,12 +26,34 @@ public class MainActivity extends AppCompatActivity {
             startActivity(i);
         });
 
-        // Chế độ đấu máy
+        // 🤖 Chế độ đấu với máy (AI)
         btnAI.setOnClickListener(v -> {
-            Intent i = new Intent(MainActivity.this, ChessActivity.class);
-            i.putExtra("mode", "ai");
-            startActivity(i);
+            // Tạo danh sách cấp độ hiển thị trong hộp thoại
+            String[] levels = {"Dễ 😄", "Trung bình 🙂", "Khó 😤"};
+
+            // Tạo hộp thoại chọn cấp độ
+            new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("Chọn cấp độ AI") // tiêu đề hộp thoại
+                    .setItems(levels, (dialog, which) -> {
+                        // which: 0 = Dễ, 1 = Trung bình, 2 = Khó
+                        int aiLevel = which + 1; // quy đổi sang 1, 2, 3
+
+                        // Tạo Intent để mở ChessActivity
+                        Intent i = new Intent(MainActivity.this, ChessActivity.class);
+                        i.putExtra("mode", "ai");       // chế độ chơi với máy
+                        i.putExtra("AI_LEVEL", aiLevel); // truyền cấp độ AI
+                        startActivity(i); // mở màn chơi cờ
+                    })
+                    .setNegativeButton("Hủy", (dialog, which) -> dialog.dismiss()) // nút Hủy
+                    .show(); // hiển thị hộp thoại
         });
+
+        // Chế độ đấu máy
+        //btnAI.setOnClickListener(v -> {
+            //Intent i = new Intent(MainActivity.this, ChessActivity.class);
+            //i.putExtra("mode", "ai");
+            //startActivity(i);
+        //});
 
         // Xem lịch sử
         btnHistory.setOnClickListener(v -> {
