@@ -1,27 +1,33 @@
 package com.example.chessgame.logic;
 
+import android.util.Log;
+
 import com.example.chessgame.model.Piece;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 /**
- * Lớp AIPlayer chịu trách nhiệm điều khiển máy tính trong chế độ "Đấu với máy".
- * Hỗ trợ 3 cấp độ:
- *   1️⃣ Dễ      → đi ngẫu nhiên
- *   2️⃣ Trung bình → ưu tiên ăn quân
- *   3️⃣ Khó     → chọn nước ăn có lợi nhất
+ * AIPlayer.java
+ *
+ * - AI dùng GameManager làm nguồn chân lý (board + validator).
+ * - Không tạo MoveValidator mới (tránh trạng thái không đồng bộ).
+ * - Bọc các cuộc gọi validator bằng try/catch để tránh ném exception làm đơ UI.
+ * - Hỗ trợ 3 mức độ: random (1), greedy (2), smart (3).
  */
 public class AIPlayer {
 
-    private GameManager gm;   // Quản lý toàn bộ ván cờ (bàn, lượt, luật,...)
-    private Random rnd = new Random();  // Để chọn ngẫu nhiên khi cần
-    private int aiLevel;      // Mức độ AI (1 = Dễ, 2 = TB, 3 = Khó)
+    private static final String TAG = "AIPlayer";
+
+    private final GameManager gm;   // GameManager chứa board, validator, history...
+    private final Random rnd = new Random();  // Dùng để chọn ngẫu nhiên
+    private final int aiLevel;      // Mức độ AI (1=dễ,2=trung bình,3=khó)
 
     /**
      * Constructor nhận GameManager và cấp độ AI.
-     * @param gm       Đối tượng GameManager của ván hiện tại
-     * @param aiLevel  Cấp độ AI (1–3)
+     * @param gm      game manager của ván hiện tại (AI sẽ dùng gm.getBoard() và gm.getValidator())
+     * @param aiLevel 1..3
      */
     public AIPlayer(GameManager gm, int aiLevel) {
         this.gm = gm;
@@ -29,181 +35,184 @@ public class AIPlayer {
     }
 
     /**
-     * 🔹 Chọn nước đi tốt nhất dựa vào cấp độ AI
-     * @param aiIsWhite màu của AI (true = quân Trắng, false = quân Đen)
-     * @return true nếu máy thực hiện được nước đi, false nếu không
+     * makeBestMove: entry point cho AI.
+     * @param aiIsWhite màu của AI (true nếu AI chơi Trắng)
+     * @return true nếu AI thực hiện được một nước, false nếu không tìm được nước
      */
     public boolean makeBestMove(boolean aiIsWhite) {
         switch (aiLevel) {
-            case 1:
-                return makeRandomMove(aiIsWhite);   // dễ → random
-            case 2:
-                return makeGreedyMove(aiIsWhite);   // trung bình → ăn quân nếu có thể
-            case 3:
-                return makeSmartMove(aiIsWhite);    // khó → chọn nước ăn có lợi nhất
-            default:
-                return makeRandomMove(aiIsWhite);
+            case 1: return makeRandomMove(aiIsWhite);   // dễ: random
+            case 2: return makeGreedyMove(aiIsWhite);   // trung bình: ưu tiên ăn quân
+            case 3: return makeSmartMove(aiIsWhite);    // khó: score đơn giản
+            default: return makeRandomMove(aiIsWhite);
         }
     }
 
-    /**
-     * 🔹 Cấp độ 1 (Dễ) — AI chọn một nước đi hợp lệ ngẫu nhiên
-     */
+    // -------------------------
+    // Level 1: Random move
+    // -------------------------
     public boolean makeRandomMove(boolean aiIsWhite) {
-        Board board = gm.getBoard();
-        List<int[]> moves = new ArrayList<>();
-        MoveValidator mv = new MoveValidator(board);
+        Board board = gm.getBoard();                    // lấy board từ GameManager
+        MoveValidator mv = gm.getValidator();           // lấy validator CHUNG từ GameManager
+        List<int[]> moves = new ArrayList<>();          // danh sách các nước hợp lệ
 
-        // Duyệt toàn bộ bàn cờ để tìm nước hợp lệ
+        // Duyệt mọi ô để tìm quân của AI
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
                 Piece p = board.getPiece(r, c);
-                if (p != null && p.isWhite() == aiIsWhite) {
-                    // Tìm mọi ô mà quân này có thể di chuyển tới
-                    for (int tr = 0; tr < 8; tr++) {
-                        for (int tc = 0; tc < 8; tc++) {
-                            if (mv.isValidMove(r, c, tr, tc, aiIsWhite)) {
+                if (p == null) continue;
+                if (p.isWhite() != aiIsWhite) continue; // chỉ xử lý quân của AI
+
+                // Duyệt mọi ô đích có thể tới
+                for (int tr = 0; tr < 8; tr++) {
+                    for (int tc = 0; tc < 8; tc++) {
+                        try {
+                            // Bọc gọi validator để an toàn: validator có thể mô phỏng/undo và ném exception hiếm
+                            if (mv != null && mv.isValidMove(r, c, tr, tc, aiIsWhite)) {
                                 moves.add(new int[]{r, c, tr, tc});
                             }
+                        } catch (Exception ex) {
+                            // Log lỗi nhưng bỏ qua nước đó (không để crash/đơ)
+                            Log.e(TAG, "Validator exception in makeRandomMove for " + r + "," + c + " -> " + tr + "," + tc, ex);
                         }
                     }
                 }
             }
         }
 
-        // Nếu không có nước hợp lệ → không đi được
-        if (moves.isEmpty()) return false;
+        if (moves.isEmpty()) {
+            Log.d(TAG, "makeRandomMove: no valid moves found for AI (aiIsWhite=" + aiIsWhite + ")");
+            return false;
+        }
 
-        // Chọn ngẫu nhiên một nước trong danh sách
+        // Chọn ngẫu nhiên 1 nước và thực hiện qua GameManager (gm.tryMove sẽ commit và lưu history)
         int[] sel = moves.get(rnd.nextInt(moves.size()));
-        return gm.tryMove(sel[0], sel[1], sel[2], sel[3]);
+        boolean res = gm.tryMove(sel[0], sel[1], sel[2], sel[3]);
+        Log.d(TAG, "makeRandomMove: executed move " + sel[0] + "," + sel[1] + " -> " + sel[2] + "," + sel[3] + " result=" + res);
+        return res;
     }
 
-    /**
-     * 🔹 Cấp độ 2 (Trung bình) — Ưu tiên ăn quân giá trị cao nhất
-     */
+    // -------------------------
+    // Level 2: Greedy (ưu tiên ăn)
+    // -------------------------
     private boolean makeGreedyMove(boolean aiIsWhite) {
         Board board = gm.getBoard();
-        MoveValidator mv = new MoveValidator(board);
+        MoveValidator mv = gm.getValidator();
         List<int[]> bestMoves = new ArrayList<>();
-        int bestValue = -9999;
+        int bestValue = Integer.MIN_VALUE; // lưu giá trị lớn nhất tìm được
 
-        // Duyệt toàn bộ bàn cờ
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
                 Piece p = board.getPiece(r, c);
-                if (p != null && p.isWhite() == aiIsWhite) {
-                    // Duyệt các ô đích có thể di chuyển tới
-                    for (int tr = 0; tr < 8; tr++) {
-                        for (int tc = 0; tc < 8; tc++) {
-                            if (mv.isValidMove(r, c, tr, tc, aiIsWhite)) {
+                if (p == null || p.isWhite() != aiIsWhite) continue;
+
+                for (int tr = 0; tr < 8; tr++) {
+                    for (int tc = 0; tc < 8; tc++) {
+                        try {
+                            if (mv != null && mv.isValidMove(r, c, tr, tc, aiIsWhite)) {
                                 Piece target = board.getPiece(tr, tc);
                                 int value = 0;
-
-                                // Nếu nước đi này ăn được quân đối thủ → cộng điểm theo giá trị quân bị ăn
                                 if (target != null && target.isWhite() != aiIsWhite) {
-                                    value = getPieceValue(target);
+                                    value = getPieceValue(target); // điểm theo loại quân bị ăn
                                 }
 
-                                // Lưu nước ăn có giá trị cao nhất
                                 if (value > bestValue) {
                                     bestValue = value;
                                     bestMoves.clear();
                                     bestMoves.add(new int[]{r, c, tr, tc});
                                 } else if (value == bestValue) {
-                                    // Nếu có nhiều nước tương đương → lưu lại để random sau
                                     bestMoves.add(new int[]{r, c, tr, tc});
                                 }
                             }
+                        } catch (Exception ex) {
+                            Log.e(TAG, "Validator exception in makeGreedyMove for move " + r + "," + c + "->" + tr + "," + tc, ex);
                         }
                     }
                 }
             }
         }
 
-        // Nếu không có nước ăn → fallback sang random
         if (bestMoves.isEmpty()) {
+            Log.d(TAG, "makeGreedyMove: no capture moves, fallback to random");
             return makeRandomMove(aiIsWhite);
         }
 
-        // Chọn ngẫu nhiên 1 nước trong các nước tốt nhất
         int[] sel = bestMoves.get(rnd.nextInt(bestMoves.size()));
-        return gm.tryMove(sel[0], sel[1], sel[2], sel[3]);
+        boolean res = gm.tryMove(sel[0], sel[1], sel[2], sel[3]);
+        Log.d(TAG, "makeGreedyMove: executed move " + sel[0] + "," + sel[1] + " -> " + sel[2] + "," + sel[3] + " result=" + res + " bestValue=" + bestValue);
+        return res;
     }
 
-    /**
-     * 🔹 Cấp độ 3 (Khó) — Tính điểm lợi/hại: ăn quân mạnh, tránh mất lợi thế
-     * (phiên bản cơ bản, chưa phải minimax)
-     */
+    // -------------------------
+    // Level 3: Smart (simple scoring)
+    // -------------------------
     private boolean makeSmartMove(boolean aiIsWhite) {
         Board board = gm.getBoard();
-        MoveValidator mv = new MoveValidator(board);
+        MoveValidator mv = gm.getValidator();
 
-        int bestScore = Integer.MIN_VALUE; // điểm cao nhất tìm được
-        int[] bestMove = null;             // nước đi tương ứng
+        int bestScore = Integer.MIN_VALUE;
+        int[] bestMove = null;
 
-        // Duyệt toàn bộ quân cờ của AI
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
                 Piece p = board.getPiece(r, c);
-                if (p != null && p.isWhite() == aiIsWhite) {
+                if (p == null || p.isWhite() != aiIsWhite) continue;
 
-                    for (int tr = 0; tr < 8; tr++) {
-                        for (int tc = 0; tc < 8; tc++) {
-                            if (mv.isValidMove(r, c, tr, tc, aiIsWhite)) {
-
+                for (int tr = 0; tr < 8; tr++) {
+                    for (int tc = 0; tc < 8; tc++) {
+                        try {
+                            if (mv != null && mv.isValidMove(r, c, tr, tc, aiIsWhite)) {
                                 Piece captured = board.getPiece(tr, tc);
                                 int score = 0;
 
-                                // ✅ Nếu ăn được quân → cộng điểm bằng giá trị quân bị ăn
+                                // ăn quân được -> cộng điểm
                                 if (captured != null && captured.isWhite() != aiIsWhite) {
-                                    score += getPieceValue(captured);
+                                    score += getPieceValue(captured) * 10; // nhân hệ số để ưu tiên ăn
                                 }
 
-                                // ⚖️ Thêm logic đơn giản: khuyến khích di chuyển về trung tâm
-                                int distFromCenter = Math.abs(tr - 3) + Math.abs(tc - 3);
-                                score -= distFromCenter * 2; // càng xa trung tâm → điểm giảm
+                                // khuyến khích trung tâm: khoảng cách Manhattan tới ô (3,3)/(4,4)
+                                int centerDist = Math.abs(tr - 3) + Math.abs(tc - 3);
+                                score -= centerDist * 2;
 
-                                // ✅ Nếu điểm cao hơn → chọn nước này
+                                // khuyến khích không bỏ vào ô bị ăn ngay (rất cơ bản)
+                                // (tạm thời không mô phỏng sâu để tránh tốn thời gian)
                                 if (score > bestScore) {
                                     bestScore = score;
                                     bestMove = new int[]{r, c, tr, tc};
                                 }
                             }
+                        } catch (Exception ex) {
+                            Log.e(TAG, "Validator exception in makeSmartMove for move " + r + "," + c + "->" + tr + "," + tc, ex);
                         }
                     }
                 }
             }
         }
 
-        // Nếu không có nước "tốt" → fallback sang random
         if (bestMove == null) {
+            Log.d(TAG, "makeSmartMove: no scored move found, fallback to random");
             return makeRandomMove(aiIsWhite);
         }
 
-        // Thực hiện nước đi được chọn
-        return gm.tryMove(bestMove[0], bestMove[1], bestMove[2], bestMove[3]);
+        boolean res = gm.tryMove(bestMove[0], bestMove[1], bestMove[2], bestMove[3]);
+        Log.d(TAG, "makeSmartMove: executed bestMove " + bestMove[0] + "," + bestMove[1] + " -> " + bestMove[2] + "," + bestMove[3] + " score=" + bestScore + " result=" + res);
+        return res;
     }
 
     /**
-     * 🔹 Trả về giá trị của từng loại quân (điểm cơ bản)
-     * Dùng enum Piece.Type thay vì String
+     * Trả về điểm cơ bản cho từng loại quân.
+     * Giá trị là số nguyên, được sử dụng để so sánh nước ăn.
      */
     private int getPieceValue(Piece p) {
+        if (p == null) return 0;
         switch (p.getType()) {
-            case PAWN:
-                return 100;
-            case KNIGHT:
-            case BISHOP:
-                return 300;
-            case ROOK:
-                return 500;
-            case QUEEN:
-                return 900;
-            case KING:
-                return 10000;
-            default:
-                return 0;
+            case PAWN:   return 100;
+            case KNIGHT: return 300;
+            case BISHOP: return 300;
+            case ROOK:   return 500;
+            case QUEEN:  return 900;
+            case KING:   return 10000;
+            default:     return 0;
         }
     }
 }

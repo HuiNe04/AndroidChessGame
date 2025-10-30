@@ -26,4 +26,14 @@
         android:clipToPadding="false"
         android:scrollbars="vertical" />
 
+    <!-- 🧾 Danh sách lịch sử -->
+    <ListView
+        android:id="@+id/lvHistory"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:divider="#555555"
+        android:dividerHeight="1dp"
+        android:background="#2C2C2C"
+        android:padding="8dp" />
+
 </LinearLayout>

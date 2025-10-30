@@ -4,86 +4,81 @@ import com.example.chessgame.model.Piece;
 import com.example.chessgame.model.Piece.Type;
 
 /**
- * GameManager.java
+ * ✅ GameManager.java (Final Fixed Version)
  *
- * 💡 Nhiệm vụ:
- *  - Quản lý toàn bộ trạng thái ván cờ (board, lượt đi, lịch sử, thắng/thua/hòa)
- *  - Giao tiếp giữa lớp hiển thị (ChessBoardView / ChessActivity) và logic xử lý (MoveValidator)
- *  - Cung cấp hàm tryMove(), undo(), reset() để điều khiển gameplay
+ * Quản lý toàn bộ trạng thái ván cờ:
+ *  - Lưu trữ bàn cờ, trạng thái lượt, lịch sử nước đi
+ *  - Kiểm tra thắng / thua / hòa, bao gồm cả chiếu bí (checkmate) và bí hòa (stalemate)
+ *  - Cung cấp API cho UI (ChessBoardView, ChessActivity)
  */
 public class GameManager {
-    private final Board board;                 // Lưu trạng thái bàn cờ (ma trận Piece[8][8])
-    private final MoveValidator validator;    // Dùng để kiểm tra nước đi hợp lệ
-    private boolean whiteTurn = true;         // true = lượt Trắng, false = lượt Đen
+    // ----- Biến nội bộ -----
+    private final Board board;                // Đối tượng Board lưu ma trận quân cờ
+    private final MoveValidator validator;    // Kiểm tra hợp lệ nước đi
+    private boolean whiteTurn = true;         // true = Trắng đi, false = Đen đi
 
-    // Stack lưu toàn bộ lịch sử nước đi — hỗ trợ Undo chính xác
     private final java.util.Stack<HistoryEntry> history = new java.util.Stack<>();
-
     private boolean gameOver = false;         // true nếu ván đã kết thúc
-    private String winner = "";               // "Trắng", "Đen", hoặc "Hòa"
+    private String winner = "";               // "Trắng" | "Đen" | "Hòa" | ""
 
-    // ------------------------------
-    // Constructor
-    // ------------------------------
+    // ----- Constructor -----
     public GameManager() {
-        board = new Board();                  // Tạo bàn cờ mới (gọi setupBoard())
-        validator = new MoveValidator(board); // Tạo MoveValidator gắn với board này
+        board = new Board();
+        validator = new MoveValidator(board);
     }
 
-    // ------------------------------
-    // Getter cơ bản
-    // ------------------------------
+    // Getter để lớp khác dùng
     public Board getBoard() { return board; }
     public boolean isWhiteTurn() { return whiteTurn; }
     public boolean isGameOver() { return gameOver; }
     public String getWinner() { return winner; }
+    public MoveValidator getValidator() { return validator; }
 
-    // ------------------------------
-    // Lớp HistoryEntry: ghi nhớ toàn bộ thông tin của 1 nước đi
-    // ------------------------------
+    // ===============================================================
+    // ⏪ Cấu trúc lưu lại thông tin 1 nước đi để UNDO
+    // ===============================================================
     private static class HistoryEntry {
-        public Board.MoveBackup mainBackup; // Backup của di chuyển chính (from→to)
-        public boolean isEnPassant = false; // Có phải en-passant không?
+        public Board.MoveBackup mainBackup;
+        public boolean isEnPassant = false;
         public Piece enPassantCapturedPiece = null;
         public int enPassantCapturedRow = -1, enPassantCapturedCol = -1;
 
-        public boolean isCastling = false;  // Có phải nhập thành không?
-        public Board.MoveBackup rookBackup = null; // Backup cho rook di chuyển
+        public boolean isCastling = false;
+        public Board.MoveBackup rookBackup = null;
 
-        public boolean isPromotion = false; // Có phong cấp không?
-        public Piece promotedPawnOriginal = null;  // Lưu pawn gốc trước khi đổi thành queen
+        public boolean isPromotion = false;
+        public Piece promotedPawnOriginal = null;
 
-        // Lưu trạng thái game trước nước đi này (để undo chính xác)
         public boolean previousGameOver = false;
         public String previousWinner = "";
-        public boolean previousWhiteTurn;
+        public boolean previousWhiteTurn = true;
     }
 
-    // ------------------------------
-    // THỰC HIỆN 1 NƯỚC ĐI (tryMove)
-    // ------------------------------
+    // ===============================================================
+    // ♟️ tryMove(): Thực hiện nước đi nếu hợp lệ
+    // ===============================================================
     public boolean tryMove(int fr, int fc, int tr, int tc) {
-        if (gameOver) return false; // Ngăn không cho đi tiếp nếu ván đã kết thúc
+        // 1️⃣ Nếu ván đã kết thúc -> không cho đi
+        if (gameOver) return false;
 
+        // 2️⃣ Lấy quân nguồn; nếu trống -> invalid
         Piece moved = board.getPiece(fr, fc);
-        if (moved == null) return false; // Không có quân nào ở vị trí xuất phát
+        if (moved == null) return false;
 
-        // ✅ Bước 1: Kiểm tra hợp lệ (không commit)
+        // 3️⃣ Kiểm tra hợp lệ nước đi (theo luật + an toàn vua)
         if (!validator.isValidMove(fr, fc, tr, tc, whiteTurn)) return false;
 
-        // ✅ Tạo 1 bản ghi lịch sử để lưu toàn bộ thông tin Undo
+        // 4️⃣ Lưu snapshot để UNDO sau này
         HistoryEntry he = new HistoryEntry();
         he.previousGameOver = gameOver;
         he.previousWinner = winner;
         he.previousWhiteTurn = whiteTurn;
 
-        // Lưu lại quân bị ăn trực tiếp (nếu có)
-        Piece directCaptured = board.getPiece(tr, tc);
-
-        // ---------------- En Passant ----------------
+        // 5️⃣ Kiểm tra En Passant
         boolean isEnPassant = false;
         Piece enPassantCaptured = null;
         int enPassantRow = -1, enPassantCol = -1;
+        Piece directCaptured = board.getPiece(tr, tc);
 
         if (moved.getType() == Type.PAWN && Math.abs(tc - fc) == 1 && Math.abs(tr - fr) == 1 && directCaptured == null) {
             int[] eps = validator.getEnPassantSquare();
@@ -92,16 +87,15 @@ public class GameManager {
                 enPassantRow = moved.isWhite() ? tr + 1 : tr - 1;
                 enPassantCol = tc;
                 enPassantCaptured = board.getPiece(enPassantRow, enPassantCol);
-                // Xóa quân bị ăn (pawn đối phương) ở ô en-passant
-                board.placePiece(enPassantRow, enPassantCol, null);
+                board.placePiece(enPassantRow, enPassantCol, null); // xóa quân bị ăn tạm
             }
         }
 
-        // ---------------- Thực hiện di chuyển chính ----------------
+        // 6️⃣ Thực hiện nước đi thật sự
         Board.MoveBackup mainBackup = board.makeMove(fr, fc, tr, tc);
         he.mainBackup = mainBackup;
 
-        // Nếu là en-passant → lưu dữ liệu vào HistoryEntry để Undo được
+        // Nếu là En Passant -> lưu lại
         if (isEnPassant) {
             he.isEnPassant = true;
             he.enPassantCapturedPiece = enPassantCaptured;
@@ -109,96 +103,120 @@ public class GameManager {
             he.enPassantCapturedCol = enPassantCol;
         }
 
-        // ---------------- Promotion (phong cấp) ----------------
+        // 7️⃣ Kiểm tra Promotion (phong hậu)
         if (mainBackup.movedPiece != null && mainBackup.movedPiece.getType() == Type.PAWN) {
             int toRow = mainBackup.toR;
             if ((mainBackup.movedPiece.isWhite() && toRow == 0) || (!mainBackup.movedPiece.isWhite() && toRow == 7)) {
                 he.isPromotion = true;
                 he.promotedPawnOriginal = mainBackup.movedPiece;
-                // Tự động đổi thành Queen
                 board.placePiece(toRow, mainBackup.toC,
                         new Piece(Type.QUEEN, mainBackup.movedPiece.isWhite(), toRow, mainBackup.toC));
             }
         }
 
-        // ---------------- Castling (nhập thành) ----------------
-        if (mainBackup.movedPiece != null && mainBackup.movedPiece.getType() == Type.KING &&
+        // 8️⃣ Nhập thành (Castling)
+        if (mainBackup.movedPiece != null &&
+                mainBackup.movedPiece.getType() == Type.KING &&
                 Math.abs(mainBackup.toC - mainBackup.fromC) == 2) {
 
             boolean kingSide = mainBackup.toC > mainBackup.fromC;
             int rookFrom = kingSide ? 7 : 0;
             int rookTo = kingSide ? mainBackup.toC - 1 : mainBackup.toC + 1;
-
-            // Di chuyển rook và lưu backup để Undo được
             Board.MoveBackup rookBackup = board.makeMove(mainBackup.fromR, rookFrom, mainBackup.fromR, rookTo);
             he.isCastling = true;
             he.rookBackup = rookBackup;
         }
 
-        // ✅ Lưu HistoryEntry vào stack
+        // 9️⃣ Lưu lại vào stack lịch sử
         history.push(he);
 
-        // ---------------- Kiểm tra trạng thái kết thúc ----------------
+        // ===============================================================
+        // ⚖️ Cập nhật trạng thái ván đấu (win / lose / draw / checkmate)
+        // ===============================================================
+
+        // ❗1. Nếu mất vua trắng => Đen thắng
         if (!hasKing(true)) {
             gameOver = true;
-            winner = "Đen thắng";
-        } else if (!hasKing(false)) {
-            gameOver = true;
-            winner = "Trắng thắng";
+            winner = "Đen";
         }
-        // ✅ Thêm điều kiện hòa khi chỉ còn 2 vua
+        // ❗2. Nếu mất vua đen => Trắng thắng
+        else if (!hasKing(false)) {
+            gameOver = true;
+            winner = "Trắng";
+        }
+        // ❗3. Nếu chỉ còn hai vua => Hòa
         else if (onlyKingsLeft()) {
             gameOver = true;
-            winner = "Hòa (Chỉ còn hai vua)";
+            winner = "Hòa";
+        }
+        // ❗4. Nếu chiếu hết (checkmate)
+        else if (validator.isCheckmate(!whiteTurn)) {
+            gameOver = true;
+            winner = whiteTurn ? "Trắng" : "Đen"; // người vừa đi là người thắng
+        }
+        // ❗5. Nếu không bị chiếu nhưng không còn nước đi hợp lệ => hòa (stalemate)
+        else if (!validator.isKingInCheck(!whiteTurn)) {
+            boolean hasLegalMove = false;
+
+            // Kiểm tra toàn bộ bàn xem bên kia còn nước hợp lệ không
+            for (int r = 0; r < 8 && !hasLegalMove; r++) {
+                for (int c = 0; c < 8 && !hasLegalMove; c++) {
+                    Piece p = board.getPiece(r, c);
+                    if (p != null && p.isWhite() == !whiteTurn) {
+                        for (int tr2 = 0; tr2 < 8 && !hasLegalMove; tr2++) {
+                            for (int tc2 = 0; tc2 < 8 && !hasLegalMove; tc2++) {
+                                if (validator.isValidMove(r, c, tr2, tc2, !whiteTurn)) {
+                                    hasLegalMove = true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!hasLegalMove) {
+                gameOver = true;
+                winner = "Hòa";
+            }
         }
 
-        // ---------------- Chuyển lượt ----------------
+        // 🔁 10️⃣ Nếu game chưa kết thúc -> đổi lượt
         if (!gameOver) whiteTurn = !whiteTurn;
 
-        return true;
+        return true; // ✅ Move hợp lệ, đã thực hiện xong
     }
 
-    // ------------------------------
-    // UNDO 1 NƯỚC ĐI
-    // ------------------------------
+    // ===============================================================
+    // ⏪ Undo (hoàn tác nước đi)
+    // ===============================================================
     public boolean undo() {
         if (history.isEmpty()) return false;
         HistoryEntry he = history.pop();
 
-        // 1️⃣ Undo nhập thành (rook trước)
-        if (he.isCastling && he.rookBackup != null) {
+        if (he.isCastling && he.rookBackup != null)
             board.undoMove(he.rookBackup);
-        }
 
-        // 2️⃣ Undo nước chính (trả lại quân bị ăn, di chuyển ngược)
-        if (he.mainBackup != null) {
+        if (he.mainBackup != null)
             board.undoMove(he.mainBackup);
-        }
 
-        // 3️⃣ Nếu là en-passant → phục hồi quân bị ăn (pawn đối phương)
-        if (he.isEnPassant && he.enPassantCapturedPiece != null) {
+        if (he.isEnPassant && he.enPassantCapturedPiece != null)
             board.placePiece(he.enPassantCapturedRow, he.enPassantCapturedCol, he.enPassantCapturedPiece);
-        }
 
-        // 4️⃣ Nếu có promotion → đổi lại từ Queen về pawn gốc
         if (he.isPromotion && he.promotedPawnOriginal != null) {
-            int toR = he.mainBackup.toR;
-            int toC = he.mainBackup.toC;
+            int toR = he.mainBackup.toR, toC = he.mainBackup.toC;
             board.placePiece(toR, toC, he.promotedPawnOriginal);
             he.promotedPawnOriginal.setPosition(toR, toC);
         }
 
-        // 5️⃣ Khôi phục trạng thái trước đó (lượt, kết thúc, người thắng)
-        this.gameOver = he.previousGameOver;
-        this.winner = he.previousWinner;
-        this.whiteTurn = he.previousWhiteTurn;
-
+        gameOver = he.previousGameOver;
+        winner = he.previousWinner;
+        whiteTurn = he.previousWhiteTurn;
         return true;
     }
 
-    // ------------------------------
-    // Kiểm tra tồn tại vua theo màu
-    // ------------------------------
+    // ===============================================================
+    // 🔍 Kiểm tra trạng thái bàn cờ
+    // ===============================================================
     private boolean hasKing(boolean whiteKing) {
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
@@ -210,12 +228,8 @@ public class GameManager {
         return false;
     }
 
-    // ------------------------------
-    // Kiểm tra hòa khi chỉ còn hai vua
-    // ------------------------------
     private boolean onlyKingsLeft() {
-        int pieceCount = 0;
-        int kingCount = 0;
+        int pieceCount = 0, kingCount = 0;
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
                 Piece p = board.getPiece(r, c);
@@ -228,20 +242,17 @@ public class GameManager {
         return (pieceCount == 2 && kingCount == 2);
     }
 
-    // ------------------------------
-    // Lấy tổng số nước đã đi (phục vụ thống kê)
-    // ------------------------------
     public int getTotalMoves() {
         return history.size();
     }
 
-    // ------------------------------
-    // Reset toàn bộ ván mới
-    // ------------------------------
+    // ===============================================================
+    // 🔁 Reset bàn cờ về trạng thái ban đầu
+    // ===============================================================
     public void reset() {
-        board.reset();        // Đặt lại toàn bộ bàn cờ
-        history.clear();      // Xóa lịch sử
-        whiteTurn = true;     // Trắng đi trước
+        board.reset();
+        history.clear();
+        whiteTurn = true;
         gameOver = false;
         winner = "";
     }

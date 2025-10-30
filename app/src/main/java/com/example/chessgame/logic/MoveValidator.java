@@ -352,8 +352,8 @@ public class MoveValidator {
      * Lưu ý: sử dụng các validator type-specific (validKnight, validRook, ...) để kiểm tra tấn công,
      * nhưng phải xử lý pawn capture riêng vì pawn di chuyển khác với cách tấn công.
      */
-    public boolean isKingInCheck(boolean whiteColor) {
-        // 1. Tìm vua
+    public boolean isKingInCheck(boolean whiteColor) { // fix
+        // 1. Tìm vị trí vua
         int kingR = -1, kingC = -1;
         for (int r = 0; r < 8; r++) {
             for (int c = 0; c < 8; c++) {
@@ -365,14 +365,19 @@ public class MoveValidator {
             }
             if (kingR != -1) break;
         }
+
+        // Nếu không tìm thấy vua:
+        // - Trước đây code trả về TRUE (coi như bị chiếu) và điều đó có thể khiến mọi nước hợp lệ bị chặn
+        // - Thay đổi: trả về FALSE để không vô tình chặn các mô phỏng nước đi.
+        //   GameManager sẽ chịu trách nhiệm set gameOver khi vua thực sự bị ăn.
         if (kingR == -1) {
-            // Không tìm thấy vua (có thể đã bị ăn) -> coi là bị chiếu (hoặc game over)
-            return true;
+            return false;
         }
 
-        // 2. Dùng helper isSquareAttacked để kiểm tra nhanh
+        // 2. Kiểm tra xem ô vua có đang bị tấn công bởi đối phương hay không
         return isSquareAttacked(kingR, kingC, !whiteColor);
     }
+
 
     /**
      * Kiểm tra xem bên whiteToMove có bị chiếu hết hay không.
