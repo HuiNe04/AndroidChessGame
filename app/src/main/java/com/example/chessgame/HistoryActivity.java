@@ -1,20 +1,25 @@
 package com.example.chessgame;
 
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
+import android.graphics.drawable.RippleDrawable;
+import android.graphics.drawable.ShapeDrawable;
+import android.graphics.drawable.StateListDrawable;
+import android.graphics.drawable.shapes.RectShape;
 import android.os.Bundle;
+import android.view.View;
+import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.ListView;
+import android.widget.TextView;
+
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.chessgame.db.DatabaseHelper;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import com.google.android.material.appbar.MaterialToolbar;
 
-/**
- * HistoryActivity.java
- * --------------------
- * Màn hình hiển thị danh sách các ván cờ đã lưu trong SQLite.
- */
+import java.util.ArrayList;
+
 public class HistoryActivity extends AppCompatActivity {
     private ListView lvHistory;
     private DatabaseHelper db;
@@ -22,31 +27,62 @@ public class HistoryActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_history); // layout có ListView id=lvHistory
+        setContentView(R.layout.activity_history);
+
+        // 🔹 Thanh tiêu đề + nút quay lại
+        MaterialToolbar toolbar = findViewById(R.id.toolbarHistory);
+        toolbar.setNavigationOnClickListener(v -> finish());
 
         lvHistory = findViewById(R.id.lvHistory);
         db = new DatabaseHelper(this);
 
-        // 🔹 Lấy toàn bộ lịch sử ván đấu
         var list = db.getAllGames();
+        android.util.Log.d("HISTORY_DEBUG", "Số bản ghi: " + list.size());
 
-        // 🔹 Định dạng dữ liệu hiển thị dạng text
-        var items = new java.util.ArrayList<String>();
-        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
-
+        ArrayList<String> items = new ArrayList<>();
         for (var g : list) {
-            String date = "";
-            try {
-                date = sdf.format(new Date(Long.parseLong(g.datePlayed)));
-            } catch (Exception ignored) {}
-            String s = "🕹 " + g.mode + "\n🏆 " + g.winner +
-                    "\n♟ Số nước: " + g.totalMoves +
-                    "\n📅 Ngày: " + date;
+            String s = "🕹️  " + g.mode +
+                    "\n🏆  " + g.winner +
+                    "\n♟️  Số nước: " + g.totalMoves +
+                    "\n📅  " + g.datePlayed +
+                    "\n────────────────────────────";
             items.add(s);
         }
 
-        // 🔹 Đưa vào ListView
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, items);
+        // ✨ Adapter có ripple sáng
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, items) {
+            @Override
+            public View getView(int position, View convertView, ViewGroup parent) {
+                View view = super.getView(position, convertView, parent);
+                TextView tv = view.findViewById(android.R.id.text1);
+                tv.setTextColor(Color.WHITE);
+                tv.setTextSize(18);
+                tv.setLineSpacing(6f, 1f);
+                tv.setPadding(32, 24, 32, 24);
+
+                // 💡 Ripple trắng sáng dễ nhìn
+                int rippleColor = Color.parseColor("#33FFFFFF");
+                ColorDrawable mask = new ColorDrawable(Color.WHITE);
+                RippleDrawable ripple = new RippleDrawable(
+                        new android.content.res.ColorStateList(
+                                new int[][]{new int[]{}},
+                                new int[]{rippleColor}
+                        ),
+                        new ColorDrawable(Color.TRANSPARENT),
+                        mask
+                );
+                view.setBackground(ripple);
+
+                return view;
+            }
+        };
+
         lvHistory.setAdapter(adapter);
+
+        // 🎨 Nền và padding chung
+        lvHistory.setDividerHeight(12);
+        lvHistory.setPadding(24, 24, 24, 24);
+        lvHistory.setCacheColorHint(Color.TRANSPARENT);
+        lvHistory.setBackgroundColor(Color.parseColor("#121212"));
     }
 }

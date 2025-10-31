@@ -5,35 +5,42 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:background="#1E1E1E"
+    android:background="#121212"
+    android:fitsSystemWindows="true"
     tools:context=".HistoryActivity">
 
+    <!-- 🕓 Thanh tiêu đề -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbarHistory"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
-        android:backgroundTint="#2E2E2E"
-        app:title="🕓 Lịch sử ván cờ"
+        android:backgroundTint="#1F1F1F"
+        app:title="🕓  Lịch sử ván cờ"
         app:titleTextColor="#FFD700"
+        app:titleCentered="true"
         app:navigationIcon="@drawable/ic_back"
-        app:navigationContentDescription="Quay lại" />
+        app:navigationContentDescription="Quay lại"
+        android:elevation="4dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="8dp" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/recyclerHistory"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:padding="8dp"
-        android:clipToPadding="false"
-        android:scrollbars="vertical" />
-
-    <!-- 🧾 Danh sách lịch sử -->
+    <!-- ♟ Danh sách lịch sử -->
     <ListView
         android:id="@+id/lvHistory"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:divider="#555555"
-        android:dividerHeight="1dp"
-        android:background="#2C2C2C"
-        android:padding="8dp" />
-
+        android:divider="#2E2E2E"
+        android:dividerHeight="10dp"
+        android:padding="16dp"
+        android:clipToPadding="false"
+        android:scrollbars="vertical"
+        android:listSelector="?android:attr/selectableItemBackground"
+        android:drawSelectorOnTop="false"
+        android:fadeScrollbars="true"
+        android:overScrollMode="ifContentScrolls"
+        android:footerDividersEnabled="false"
+        android:headerDividersEnabled="false"
+        tools:listitem="@android:layout/simple_list_item_1"
+        android:cacheColorHint="@android:color/transparent"
+        android:background="#121212" />
 </LinearLayout>
